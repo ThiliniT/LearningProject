@@ -7,6 +7,12 @@ import ballerinax/mysql;
 import ballerina/sql;
 import ballerina/io;
 
+configurable string dbHost = ?;
+configurable string dbUser = ?;
+configurable string dbPassword = ?;
+configurable string dbName = ?;
+configurable int dbPort = ?;
+
 type Transactions record {|
 
     string accountId;
@@ -24,6 +30,12 @@ type Transactions record {|
 table<Transactions> key(transactionId) allTransactions = table [
     ];
 
+mysql:Client dbClient = check new (
+    dbHost, dbUser, dbPassword, dbName, dbPort, connectionPool = {maxOpenConnections: 5}
+);
+
+
+      
 type Accounts record {|
     readonly string accountId;
     string accountName;
@@ -47,6 +59,7 @@ type AmountRec record {|
     string currency;
 |};
 
+
 # A service representing a network-accessible API
 # bound to port `9090`.
 service / on new http:Listener(9090) {
@@ -59,9 +72,7 @@ service / on new http:Listener(9090) {
 
         do {
             // Send a response back to the caller.
-            mysql:Client dbClient = check new (
-    "mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306
-);
+    
             string accountName = check accountDetails.Data.Account.DisplayName;
             string currency = check accountDetails.Data.Account.Currency;
             string nickName = check accountDetails.Data.Account.Nickname;
@@ -75,7 +86,7 @@ service / on new http:Listener(9090) {
             //allAccounts.add({accountId: accountNumber, accountName: accountName, status: "Enabled", statusUpdateDateTime: time:utcToString(time:utcNow()), currency: currency, nickName: nickName, openingDate: openingDate, maturityDate: maturityDate, accountType: accountType, accountSubType: accountSubType, balance: 0});
             sql:ParameterizedQuery accountQuery = `INSERT INTO cognizantbankaccounts (accountId, accountName, status, nickName, openingDate, maturityDate, currency, accountType, accountSubType, balance, statusUpdateDateTime ) VALUES (${accountNumber}, ${accountName}, "Enabled", ${nickName}, ${openingDate}, ${maturityDate}, ${currency}, ${accountType}, ${accountSubType}, 0, ${statusUpdateDateTime}  )`;
             sql:ExecutionResult result = check dbClient->execute(accountQuery);
-            sql:Error? close = dbClient.close();
+
             if (result.affectedRowCount == 1) {
                 json returnvalue = {
                     "Data": {
@@ -89,6 +100,7 @@ service / on new http:Listener(9090) {
                         }
                     }
                 };
+                
                 return returnvalue;
             } else {
                 return {"Message": "Failure in creating the account"};
@@ -136,9 +148,7 @@ service / on new http:Listener(9090) {
     #
     resource function get transactions() returns json|error {
         // Send a response back to the caller.
-        mysql:Client dbClient = check new (
-    "mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306
-);
+ 
         sql:ParameterizedQuery transactionsQuery = `SELECT * FROM cognizantbanktransactions;`;
         stream<Transactions, sql:Error?> transactionsStream = dbClient->query(transactionsQuery);
         allTransactions.removeAll();
@@ -147,7 +157,7 @@ service / on new http:Listener(9090) {
                 allTransactions.add(trsctn);
 
             };
-        sql:Error? close = dbClient.close();
+       
         return {
             "Data": {
                 "Transaction": [allTransactions.toJson()]
@@ -169,9 +179,7 @@ service / on new http:Listener(9090) {
     #
     resource function get accounts() returns json|error {
         // Send a response back to the caller.
-        mysql:Client dbClient = check new (
-    "mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306
-);
+ 
         sql:ParameterizedQuery accountsQuery = `SELECT * FROM cognizantbankaccounts;`;
         stream<Accounts, sql:Error?> accountsStream = dbClient->query(accountsQuery);
         allAccounts.removeAll();
@@ -180,7 +188,7 @@ service / on new http:Listener(9090) {
                 allAccounts.add(acnts);
 
             };
-        sql:Error? close = dbClient.close();
+       
         return {
             "Data": {
                 "Account": [allAccounts.toJson()]
@@ -214,10 +222,7 @@ service / on new http:Listener(9090) {
 
     private function changeAccountBalance(float amount, string accountId, string typeofTrans) returns error?
     {
-        mysql:Client dbClient = check new (
-    "mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306
-);
-
+   
         sql:ParameterizedQuery accountQuery = `SELECT * FROM cognizantbankaccounts WHERE accountId = ${accountId};`;
         stream<Accounts, sql:Error?> accountsStream = dbClient->query(accountQuery);
         float updatedBalance = 0;
@@ -233,19 +238,20 @@ service / on new http:Listener(9090) {
                 }
 
             };
+        sql:Error?? close = accountsStream.close();
         sql:ParameterizedQuery updatequery = `UPDATE cognizantbankaccounts SET balance = ${updatedBalance} WHERE accountId = ${accountId}`;
         sql:ExecutionResult result = check dbClient->execute(updatequery);
-        sql:Error? close = dbClient.close();
+       
 
     }
 
     private function getAccountBal(string accountId) returns float|error
     {
-        mysql:Client dbClient = check new ("mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306);
+        
         io:println("getacoun called  ", accountId);
         sql:ParameterizedQuery accountQuery = `SELECT balance FROM cognizantbankaccounts WHERE accountId = ${accountId};`;
         float|sql:Error balance = dbClient->queryRow(accountQuery);
-        sql:Error? close = dbClient.close();
+       
         return balance;
     }
 
@@ -261,9 +267,9 @@ service / on new http:Listener(9090) {
         //allTransactions.add({accountId: accountId, transactionId: transactionIndex, transactionReference: transactionReference, amount: amount, creditDebitIndicator: creditDebitIndicator, bookingDateTime: bookingDateTime, valueDateTime: valueDateTime, issuer: issuer, balance: balance, currency: currency});
         sql:ParameterizedQuery transactionQuery = `INSERT INTO cognizantbanktransactions (accountId, transactionReference, amount, creditDebitIndicator, bookingDateTime, valueDateTime, issuer, balance, currency ) VALUES (${accountId},  ${transactionReference}, ${amount}, ${creditDebitIndicator} , ${bookingDateTime}, ${valueDateTime}, ${issuer}, ${balance}, ${currency} )`;
         do {
-            mysql:Client dbClient = check new ("mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306);
+           
             sql:ExecutionResult result = check dbClient->execute(transactionQuery);
-            sql:Error? close = dbClient.close();
+       
             json transactionSummary = {
                 "Data": {
                     "Status": "InitiationCompleted",
@@ -297,11 +303,11 @@ service / on new http:Listener(9090) {
 
     # A resource for deleting accounts and transactions
     resource function delete records() returns error? {
-        mysql:Client dbClient = check new ("mysql-db-cgnzntpoc.mysql.database.azure.com", "divya", "WtkMy#45%jsdUldt#", "cgnzntpoc", 3306);
+      
         sql:ParameterizedQuery query = `Delete from cognizantbankaccounts`;
         sql:ExecutionResult result = check dbClient->execute(query);
         query = `Delete from cognizantbanktransactions`;
         result = check dbClient->execute(query);
-        sql:Error? close = dbClient.close();
+     
     }
 }
