@@ -7,7 +7,7 @@ import ballerinax/mysql;
 import ballerina/sql;
 import ballerina/io;
 
-int transactionIndex = 0;
+
 
 type Transactions record {|
 
@@ -124,9 +124,9 @@ service / on new http:Listener(9090) {
             string issuer = accountId_issuer[0];
             string accountId = accountId_issuer[1];
 
-            transactionIndex += 1;
+        
             float accountBalance = check self.getAccountBal(accountId);
-            return self.setCredit(accountId, transactionIndex, reference, amount, creditDebitIndicator, bookingDateTime, valueDateTime, issuer, accountBalance, currency);
+            return self.setCredit(accountId, reference, amount, creditDebitIndicator, bookingDateTime, valueDateTime, issuer, accountBalance, currency);
         } on fail var e {
             string message = e.message();
             log:printError(message);
@@ -245,7 +245,7 @@ service / on new http:Listener(9090) {
         return balance;
     }
 
-    private function setCredit(string accountId, int transactionId, string transactionReference,
+    private function setCredit(string accountId,  string transactionReference,
             float amount,
             string creditDebitIndicator,
             string bookingDateTime,
@@ -255,7 +255,7 @@ service / on new http:Listener(9090) {
             string currency) returns json|http:BadRequest {
 
         //allTransactions.add({accountId: accountId, transactionId: transactionIndex, transactionReference: transactionReference, amount: amount, creditDebitIndicator: creditDebitIndicator, bookingDateTime: bookingDateTime, valueDateTime: valueDateTime, issuer: issuer, balance: balance, currency: currency});
-        sql:ParameterizedQuery transactionQuery = `INSERT INTO cognizantbanktransactions (accountId, transactionId, transactionReference, amount, creditDebitIndicator, bookingDateTime, valueDateTime, issuer, balance, currency ) VALUES (${accountId}, ${transactionId}, ${transactionReference}, ${amount}, ${creditDebitIndicator} , ${bookingDateTime}, ${valueDateTime}, ${issuer}, ${balance}, ${currency} )`;
+        sql:ParameterizedQuery transactionQuery = `INSERT INTO cognizantbanktransactions (accountId, transactionReference, amount, creditDebitIndicator, bookingDateTime, valueDateTime, issuer, balance, currency ) VALUES (${accountId},  ${transactionReference}, ${amount}, ${creditDebitIndicator} , ${bookingDateTime}, ${valueDateTime}, ${issuer}, ${balance}, ${currency} )`;
         do {
             sql:ExecutionResult result = check dbClient->execute(transactionQuery);
             json transactionSummary = {
